@@ -1,82 +1,313 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ImageBackground } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+/**
+ * ChatScreen - Main conversational interface for journal entries
+ *
+ * Features:
+ * - Loads user info and today's conversation on mount
+ * - Shows AI greeting if no conversation exists
+ * - Handles message sending with optimistic UI
+ * - Streams AI responses word-by-word
+ * - Auto-scrolls to bottom
+ * - iOS-optimized keyboard handling
+ * - Haptic feedback on send
+ */
+
+import {
+  View,
+  FlatList,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Text,
+  Keyboard,
+} from 'react-native';
+import { useState, useEffect, useRef } from 'react';
+import * as Haptics from 'expo-haptics';
+import { Message, ChatState } from '@/types/chat.types';
+import { supabase } from '@/services/supabase';
+import { chatService } from '@/services/chat.service';
+import ChatBubble from '@/components/ChatBubble';
+import ChatInput from '@/components/ChatInput';
 import CustomHeader from '@/components/CustomHeader';
 
-const PlaceholderImage = require('@/assets/images/background-1img.jpg');
+export default function ChatScreen() {
+  // State management
+  const [state, setState] = useState<ChatState>({
+    messages: [],
+    isLoading: true,
+    isStreaming: false,
+    currentEntryId: null,
+    userName: '',
+    error: null,
+  });
 
-export default function Home() {
-  const router = useRouter();
+  // Ref for FlatList to handle auto-scroll
+  const flatListRef = useRef<FlatList>(null);
 
-  return (
-    <View style={styles.container}>
-      <CustomHeader />
-      <ScrollView style={styles.scrollContent}>
-        <View style={styles.content}>
-          <ImageBackground
-            source={PlaceholderImage}
-            style={styles.heroSection}
-            imageStyle={styles.heroImage}
-          >
-            <View style={styles.heroOverlay}>
-              <Text style={styles.heroTitle}>Welcome to Journal App</Text>
-              <Text style={styles.heroSubtitle}>
-                Your personal space for thoughts, memories, and reflections
-              </Text>
-            </View>
-          </ImageBackground>
+  // Ref to accumulate streaming response
+  const streamingMessageRef = useRef<string>('');
 
-          <View style={styles.quickActionsSection}>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
-            <View style={styles.actionsGrid}>
-              <TouchableOpacity
-                style={styles.actionCard}
-                onPress={() => router.push('/tabs/new-journal')}
-              >
-                <View style={styles.actionIconContainer}>
-                  <Ionicons name="create-outline" size={32} color="#ffd33d" />
-                </View>
-                <Text style={styles.actionTitle}>New Entry</Text>
-                <Text style={styles.actionSubtitle}>Start writing</Text>
-              </TouchableOpacity>
+  /**
+   * Initial load: Get user info and today's conversation
+   */
+  useEffect(() => {
+    loadConversation();
+  }, []);
 
-              <TouchableOpacity
-                style={styles.actionCard}
-                onPress={() => router.push('/tabs/dashboard')}
-              >
-                <View style={styles.actionIconContainer}>
-                  <Ionicons name="stats-chart-outline" size={32} color="#ffd33d" />
-                </View>
-                <Text style={styles.actionTitle}>View Stats</Text>
-                <Text style={styles.actionSubtitle}>Track progress</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+  /**
+   * Auto-scroll when new messages arrive
+   */
+  useEffect(() => {
+    if (state.messages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [state.messages.length]);
 
-          <View style={styles.featuresSection}>
-            <Text style={styles.sectionTitle}>Features</Text>
-            <View style={styles.featuresList}>
-              <View style={styles.featureItem}>
-                <Ionicons name="pencil" size={24} color="#ffd33d" />
-                <Text style={styles.featureText}>Write and organize your thoughts</Text>
-              </View>
-              <View style={styles.featureItem}>
-                <Ionicons name="phone-portrait" size={24} color="#ffd33d" />
-                <Text style={styles.featureText}>Beautiful, intuitive interface</Text>
-              </View>
-              <View style={styles.featureItem}>
-                <Ionicons name="lock-closed" size={24} color="#ffd33d" />
-                <Text style={styles.featureText}>Private and secure</Text>
-              </View>
-              <View style={styles.featureItem}>
-                <Ionicons name="folder-open" size={24} color="#ffd33d" />
-                <Text style={styles.featureText}>Easy navigation and organization</Text>
-              </View>
-            </View>
-          </View>
+  /**
+   * Auto-scroll when keyboard shows
+   */
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+    };
+  }, []);
+
+  /**
+   * Load user information and today's conversation
+   */
+  const loadConversation = async () => {
+    try {
+      setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+      // Get current user
+      const user = await supabase.getCurrentUser();
+
+      // Get or create today's entry
+      let entry = await supabase.getTodayEntry(user.id);
+
+      if (!entry) {
+        entry = await supabase.createTodayEntry(user.id);
+      }
+
+      // Load existing messages or create greeting
+      const messages: Message[] = entry.messages.length > 0
+        ? entry.messages
+        : [{
+            id: `msg-${Date.now()}`,
+            role: 'assistant',
+            content: chatService.getGreeting(user.name),
+            timestamp: new Date(),
+            entryId: entry.id,
+          }];
+
+      // If greeting was created, save it
+      if (entry.messages.length === 0) {
+        await supabase.saveMessage(entry.id, messages[0]);
+      }
+
+      setState(prev => ({
+        ...prev,
+        messages,
+        userName: user.name,
+        currentEntryId: entry.id,
+        isLoading: false,
+      }));
+    } catch (error) {
+      console.error('Error loading conversation:', error);
+      setState(prev => ({
+        ...prev,
+        error: 'Failed to load conversation. Please try again.',
+        isLoading: false,
+      }));
+    }
+  };
+
+  /**
+   * Handle sending a user message
+   */
+  const handleSendMessage = async (content: string) => {
+    if (!state.currentEntryId || state.isStreaming) return;
+
+    // Haptic feedback on send (iOS)
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    // Create user message
+    const userMessage: Message = {
+      id: `msg-${Date.now()}`,
+      role: 'user',
+      content,
+      timestamp: new Date(),
+      entryId: state.currentEntryId,
+    };
+
+    // Optimistic UI update - add user message immediately
+    setState(prev => ({
+      ...prev,
+      messages: [...prev.messages, userMessage],
+    }));
+
+    try {
+      // Save user message to database
+      await supabase.saveMessage(state.currentEntryId, userMessage);
+
+      // Start streaming AI response
+      setState(prev => ({ ...prev, isStreaming: true }));
+
+      // Get AI response
+      const aiResponse = await chatService.getAIResponse(
+        content,
+        state.messages,
+        state.userName
+      );
+
+      // Create AI message placeholder
+      const aiMessageId = `msg-${Date.now()}-ai`;
+      const aiMessage: Message = {
+        id: aiMessageId,
+        role: 'assistant',
+        content: '', // Will be filled during streaming
+        timestamp: new Date(),
+        entryId: state.currentEntryId,
+      };
+
+      // Add empty AI message
+      setState(prev => ({
+        ...prev,
+        messages: [...prev.messages, aiMessage],
+      }));
+
+      // Stream the response word by word
+      streamingMessageRef.current = '';
+
+      await chatService.streamResponse(
+        aiResponse,
+        (word, isComplete) => {
+          streamingMessageRef.current += (streamingMessageRef.current ? ' ' : '') + word;
+
+          setState(prev => ({
+            ...prev,
+            messages: prev.messages.map(msg =>
+              msg.id === aiMessageId
+                ? { ...msg, content: streamingMessageRef.current }
+                : msg
+            ),
+          }));
+
+          // When complete, save to database and reset streaming state
+          if (isComplete) {
+            const finalMessage: Message = {
+              ...aiMessage,
+              content: streamingMessageRef.current,
+            };
+
+            supabase.saveMessage(state.currentEntryId!, finalMessage);
+
+            setState(prev => ({
+              ...prev,
+              isStreaming: false,
+            }));
+
+            streamingMessageRef.current = '';
+          }
+        },
+        50 // 50ms delay between words
+      );
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setState(prev => ({
+        ...prev,
+        error: 'Failed to send message. Please try again.',
+        isStreaming: false,
+      }));
+    }
+  };
+
+  /**
+   * Render individual message
+   */
+  const renderMessage = ({ item }: { item: Message }) => (
+    <ChatBubble message={item} />
+  );
+
+  /**
+   * Render loading state
+   */
+  if (state.isLoading) {
+    return (
+      <View style={styles.container}>
+        <CustomHeader />
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#ffd33d" />
+          <Text style={styles.loadingText}>Loading conversation...</Text>
         </View>
-      </ScrollView>
-    </View>
+      </View>
+    );
+  }
+
+  /**
+   * Render error state
+   */
+  if (state.error) {
+    return (
+      <View style={styles.container}>
+        <CustomHeader />
+        <View style={styles.centerContainer}>
+          <Text style={styles.errorText}>{state.error}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  /**
+   * Main render
+   */
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
+      <CustomHeader />
+
+      {/* Messages list */}
+      <FlatList
+        ref={flatListRef}
+        data={state.messages}
+        renderItem={renderMessage}
+        keyExtractor={item => item.id}
+        contentContainerStyle={styles.messagesList}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        keyboardShouldPersistTaps="handled"
+      />
+
+      {/* Streaming indicator */}
+      {state.isStreaming && (
+        <View style={styles.streamingIndicator}>
+          <ActivityIndicator size="small" color="#ffd33d" />
+          <Text style={styles.streamingText}>AI is typing...</Text>
+        </View>
+      )}
+
+      {/* Input */}
+      <ChatInput
+        onSend={handleSendMessage}
+        disabled={state.isStreaming}
+        placeholder={state.isStreaming ? "AI is responding..." : "Type your message..."}
+      />
+    </KeyboardAvoidingView>
   );
 }
 
@@ -85,100 +316,36 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#25292e',
   },
-  scrollContent: {
+  centerContainer: {
     flex: 1,
-  },
-  content: {
-    paddingBottom: 20,
-  },
-  heroSection: {
-    height: 250,
-    marginBottom: 24,
-  },
-  heroImage: {
-    resizeMode: 'cover',
-  },
-  heroOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(37, 41, 46, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#ffd33d',
-    textAlign: 'center',
-    marginBottom: 12,
+  messagesList: {
+    paddingVertical: 16,
+    flexGrow: 1,
   },
-  heroSubtitle: {
+  loadingText: {
+    marginTop: 16,
     fontSize: 16,
-    color: '#fff',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  quickActionsSection: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 16,
-  },
-  actionsGrid: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  actionCard: {
-    flex: 1,
-    backgroundColor: '#1a1d21',
-    padding: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#374151',
-  },
-  actionIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#25292e',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  actionSubtitle: {
-    fontSize: 14,
     color: '#9ca3af',
   },
-  featuresSection: {
-    paddingHorizontal: 20,
+  errorText: {
+    fontSize: 16,
+    color: '#ef4444',
+    textAlign: 'center',
   },
-  featuresList: {
-    backgroundColor: '#1a1d21',
-    padding: 20,
-    borderRadius: 12,
-    gap: 16,
-    borderWidth: 1,
-    borderColor: '#374151',
-  },
-  featureItem: {
+  streamingIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    gap: 8,
   },
-  featureText: {
-    fontSize: 16,
-    color: '#fff',
-    flex: 1,
+  streamingText: {
+    fontSize: 14,
+    color: '#9ca3af',
+    fontStyle: 'italic',
   },
 });
