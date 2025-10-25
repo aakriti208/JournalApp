@@ -1,87 +1,87 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE IF NOT exists JOURNAL_USER(
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name VARCHAR(100) NOT null,
-  email VARCHAR(100) unique,
-  dob DATE,
-  gender text,
-  created_at timestamp DEFAULT now()
+id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+name VARCHAR(100) NOT null,
+email VARCHAR(100) unique,
+dob DATE,
+gender text,
+created_at timestamp DEFAULT now()
 );
 
 DROP TABLE IF EXISTS journal_entries CASCADE;
 
 CREATE TABLE IF NOT EXISTS journal_entries(
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES journal_user(id) ON DELETE CASCADE,
-  title TEXT,
-  created_at TIMESTAMP DEFAULT now(),
-  updated_at TIMESTAMP DEFAULT now(),
-  journal_messages JSONB NOT NULL DEFAULT '[]'::jsonb,
-  mood_score INTEGER CHECK (mood_score BETWEEN -5 AND 5),
-  is_complete BOOLEAN DEFAULT false
+id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+user_id UUID REFERENCES journal_user(id) ON DELETE CASCADE,
+title TEXT,
+created_at TIMESTAMP DEFAULT now(),
+updated_at TIMESTAMP DEFAULT now(),
+journal_messages JSONB NOT NULL DEFAULT '[]'::jsonb,
+mood_score INTEGER CHECK (mood_score BETWEEN -5 AND 5),
+is_complete BOOLEAN DEFAULT false
 );
 
 DROP TABLE IF EXISTS entry_metadata CASCADE;
 
 CREATE TABLE IF NOT EXISTS entry_metadata(
-  id UUID primary key DEFAULT uuid_generate_v4(),
-  entry_id UUID REFERENCES JOURNAL_ENTRIES(id) ON DELETE CASCADE,
-  metadata_type text NOT null,
-  value text not null,
-  confidence float,
-  created_at timestamp DEFAULT now()
+id UUID primary key DEFAULT uuid_generate_v4(),
+entry_id UUID REFERENCES JOURNAL_ENTRIES(id) ON DELETE CASCADE,
+metadata_type text NOT null,
+value text not null,
+confidence float,
+created_at timestamp DEFAULT now()
 );
 
-
 -- Index for finding user's entries sorted by date
-CREATE INDEX IF NOT EXISTS idx_entries_user_created 
-  ON journal_entries(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_entries_user_created
+ON journal_entries(user_id, created_at DESC);
 
 -- Index for finding incomplete entries
-CREATE INDEX IF NOT EXISTS idx_entries_incomplete 
-  ON journal_entries(user_id, is_complete) 
-  WHERE is_complete = FALSE;
+CREATE INDEX IF NOT EXISTS idx_entries_incomplete
+ON journal_entries(user_id, is_complete)
+WHERE is_complete = FALSE;
 
 -- Index for finding metadata by entry
-CREATE INDEX IF NOT EXISTS idx_metadata_entry 
-  ON entry_metadata(entry_id);
+CREATE INDEX IF NOT EXISTS idx_metadata_entry
+ON entry_metadata(entry_id);
 
 -- -- Index for searching metadata by type and value
-CREATE INDEX IF NOT EXISTS idx_metadata_type_value 
-  ON entry_metadata(metadata_type, value);
-
+CREATE INDEX IF NOT EXISTS idx_metadata_type_value
+ON entry_metadata(metadata_type, value);
 
 DO $$
 DECLARE
-  test_user_id UUID := 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+test_user_id UUID := 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 BEGIN
-  -- 1️⃣ Insert the user if they don't already exist
-  INSERT INTO journal_user (id, name, email)
-  VALUES (test_user_id, 'Test User', 'test@example.com')
-  ON CONFLICT (id) DO NOTHING;  -- prevents error if user already exists
+-- 1️⃣ Insert the user if they don't already exist
+INSERT INTO journal_user (id, name, email)
+VALUES (test_user_id, 'Test User', 'test@example.com')
+ON CONFLICT (id) DO NOTHING; -- prevents error if user already exists
 
-  -- 2️⃣ Insert the journal entry referencing that user
-  INSERT INTO journal_entries (user_id, title, journal_messages, mood_score, is_complete)
-  VALUES (
-    test_user_id,
-    'My first journal entry',
-    '[
-      {"role": "assistant", "content": "Hey! How was your day?", "timestamp": "2024-10-24T14:00:00Z"},
-      {"role": "user", "content": "It was great! I learned SQL today.", "timestamp": "2024-10-24T14:01:00Z"}
-    ]'::jsonb,
-    4,
-    true
-  );
+-- 2️⃣ Insert the journal entry referencing that user
+INSERT INTO journal_entries (user_id, title, journal_messages, mood_score, is_complete)
+VALUES (
+test_user_id,
+'My first journal entry',
+'[
+{"role": "assistant", "content": "Hey! How was your day?", "timestamp": "2024-10-24T14:00:00Z"},
+{"role": "user", "content": "It was great! I learned SQL today.", "timestamp": "2024-10-24T14:01:00Z"}
+]'::jsonb,
+4,
+true
+);
 END;
-$$;
+
+$$
+;
 
 
 SELECT id, title, created_at, mood_score
 FROM journal_entries
 ORDER BY created_at DESC;
 
-SELECT id, title, jsonb_array_length(journal_messages) as message_count 
+SELECT id, title, jsonb_array_length(journal_messages) as message_count
 FROM journal_entries;
 
 
@@ -97,7 +97,7 @@ USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert own entries"
 ON journal_entries
 FOR INSERT
-WITH CHECK (auth.uid() = user_id); 
+WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can update their own entries"
 ON journal_entries
@@ -146,11 +146,16 @@ WITH CHECK (
 );
 
 
-SELECT * from journal_entries;
+-- SELECT * from journal_entries;
 
--- ONLY FOR TESTING - disable RLS temporarily
+-- -- ONLY FOR TESTING - disable RLS temporarily
 ALTER TABLE journal_entries DISABLE ROW LEVEL SECURITY;
 ALTER TABLE entry_metadata DISABLE ROW LEVEL SECURITY;
 
--- Now you can query again
+-- -- Now you can query again
 SELECT * FROM journal_entries;
+
+-- When done testing, ENABLE IT AGAIN
+ALTER TABLE journal_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE entry_metadata ENABLE ROW LEVEL SECURITY;
+$$
