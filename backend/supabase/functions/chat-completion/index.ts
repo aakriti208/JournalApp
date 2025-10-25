@@ -28,3 +28,16 @@ export async function handler(req){
 
 
 
+function validateUserData(data){
+    if(!data.name || typeof data.name != "string") return "Invalid name";
+    if(!data.age || typeof data.age != "number" || data.age < 0) return "Invalid age";
+    return null;
+}
+
+export async function errorHandler(req){
+    const body = await req.json();
+    const error = validateUserData(body);
+
+    if(error) return new Response(error, {status: 400});
+}
+
