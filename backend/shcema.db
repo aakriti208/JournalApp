@@ -141,3 +141,14 @@ USING (
     AND journal_entries.user_id = auth.uid()
   )
 );
+
+CREATE POLICY "Users can view their own metadata"
+ON entry_metadata
+FOR INSERT
+USING (
+  EXISTS (
+    INSERT 1 from journal_entries
+    WHERE journal_entries.id = entry_metadata.entry_id
+    AND journal_entries.user_id = auth.uid()
+  )
+);
