@@ -58,12 +58,43 @@ Tone: Friendly, casual, like talking to a supportive friend.`
                 max_tokens: 200,
                 top_p: 0.9,
             }),
-    })
+    }),
+        if(!groqResponse.ok){
+            const error = await groqResponse.text();
+            throw new Error(`Groq API error: ${error}`);
+        }
+
+        const data = await groqResponse.json();
+        const aiResponse = data.choices[0].message.content;
+
+    return new Response(
+        JSON.stringify({
+            response: aiResponse,
+            model: 'llama-3.1-8b-instant'
+        }),
+        {
+            headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/json' 
+            }
+        }
+    )
         }
             
 catch(error) {
+        console.error('Error', error);
+    
+    return new Response(
+        JSON.stringify({error: error.message}),
+        {
+            status: 500,
+            headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/json' 
+            }
 
-    }
+        }
+    )}
 })
 
 
