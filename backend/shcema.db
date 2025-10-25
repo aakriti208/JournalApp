@@ -144,3 +144,13 @@ WITH CHECK (
     AND journal_entries.user_id = auth.uid()
   )
 );
+
+
+SELECT * from journal_entries;
+
+-- ONLY FOR TESTING - disable RLS temporarily
+ALTER TABLE journal_entries DISABLE ROW LEVEL SECURITY;
+ALTER TABLE entry_metadata DISABLE ROW LEVEL SECURITY;
+
+-- Now you can query again
+SELECT * FROM journal_entries;
