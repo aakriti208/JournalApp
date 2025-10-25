@@ -108,3 +108,25 @@ CREATE POLICY "Users can delete their entries"
 ON journal_entries
 FOR DELETE
 USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can view their own metadata"
+ON entry_metadata
+FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 from journal_entries
+    WHERE journal_entries.id = entry_metadata.entry_id
+    AND journal_entries.user_id = auth.uid()
+  )
+);
+
+CREATE POLICY "Users can view their own metadata"
+ON entry_metadata
+FOR UPDATE
+USING (
+  EXISTS (
+    UPDATE 1 from journal_entries
+    WHERE journal_entries.id = entry_metadata.entry_id
+    AND journal_entries.user_id = auth.uid()
+  )
+);
