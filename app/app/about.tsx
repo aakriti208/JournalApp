@@ -17,7 +17,7 @@ export default function About() {
             Journal App is a personal journaling application designed to help you capture your thoughts,
             memories, and daily experiences in a beautiful and intuitive interface. Whether you&apos;re
             documenting your journey, reflecting on your day, or simply organizing your thoughts,
-            this app provides a private space for your personal expression.
+            this app provides a private space for your own personal expression.
           </Text>
         </View>
 
