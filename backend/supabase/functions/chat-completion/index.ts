@@ -1,32 +1,46 @@
 // @deno-types="npm:@types/node"
 
-import {serve} from 'https://deno.land/std@0.168.0/http/server.ts'
+import {serve} from 'https://deno.land/std@0.168.0/http/server.ts';
+import {z} from "zod";
+
+const schema = z.object({
+    message: z.string(),
+    history: z.array(z.object({ role: z.string(), content: z.string() })),
+    userName: z.string(),
+})
 
 interface Message {
     role: 'user' | 'assistant' | 'system'
     content: string
 }
 
+// CORS headers allows React Native to call this function
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Edge function to receive the request sent by React Native
+
 serve(async(req) => {
+    // Handle CORS preflight requests
     if(req.method == 'OPTIONS') {
         return new Response('ok', {headers: corsHeaders})
     }
     try {
-        const {message, history, userName} = await req.json();
+        // GET request body and extract data from it
+        const {message, history, userName} = schema.parse(await req.json());
         if(!message) {
             throw new Error("Message is required");
         }
 
-        const groqApiKey = Deno.env.get('GROQ-API-KEY');
+        // Get Groq API key from environment
+        const groqApiKey = Deno.env.get('GROQ_API_KEY');
         if(!groqApiKey) {
-            throw new Error("GROQ-API-KEY not configured")
+            throw new Error("GROQ_API_KEY not configured")
         }
 
+        // create a prompt to tell the AI how to behave
         const systemPrompt = `You are a warm, empathetic journaling companion for ${userName}.
 Your role:
 - Ask thoughtful follow-up questions about their day
@@ -37,14 +51,15 @@ Your role:
 Tone: Friendly, casual, like talking to a supportive friend.`
         
        
-
-        const messages = Message[] = [
+        // Build messages array for Groq
+        const messages: Message[] = [
             {
                 role: 'system', content: systemPrompt },
-                ...history.slice(-6), // Only last 6 messages
-                { role: 'user', content: message }
-              ]
+                ...(history as Message[]).slice(-6), // Only last 6 messages
+                {role: 'user', content: message }
+              ];
 
+        // Call Groq API
         const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -58,7 +73,7 @@ Tone: Friendly, casual, like talking to a supportive friend.`
                 max_tokens: 200,
                 top_p: 0.9,
             }),
-    }),
+    })
         if(!groqResponse.ok){
             const error = await groqResponse.text();
             throw new Error(`Groq API error: ${error}`);
@@ -66,6 +81,8 @@ Tone: Friendly, casual, like talking to a supportive friend.`
 
         const data = await groqResponse.json();
         const aiResponse = data.choices[0].message.content;
+
+    // return the response from Groq
 
     return new Response(
         JSON.stringify({
@@ -80,7 +97,7 @@ Tone: Friendly, casual, like talking to a supportive friend.`
         }
     )
         }
-            
+    // handle any errors 
 catch(error) {
         console.error('Error', error);
     
@@ -96,14 +113,4 @@ catch(error) {
         }
     )}
 })
-
-
-export async function handler(req){
-
-    const {message, history, userName} = await req.json();
-    
-    if(!message) {
-        throw new Error("Message is required");
-    }
-    }
 
