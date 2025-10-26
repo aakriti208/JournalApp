@@ -168,3 +168,21 @@ SELECT * FROM journal_entries;
 -- When done testing, ENABLE IT AGAIN
 ALTER TABLE journal_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE entry_metadata ENABLE ROW LEVEL SECURITY;
+
+
+-- Testing RLS
+
+-- Check all policies for ai_insights
+SELECT 
+  schemaname, 
+  tablename, 
+  policyname, 
+  cmd as command
+FROM pg_policies
+WHERE tablename = 'ai_insights';
+
+SELECT 
+  tablename,
+  rowsecurity as rls_enabled
+FROM pg_tables
+WHERE tablename IN ('journal_entries', 'entry_metadata', 'ai_insights');
