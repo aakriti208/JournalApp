@@ -62,6 +62,10 @@ Rules:
       }),
     });
       
+    if(!groqResponse.ok) {
+      const error = await groqResponse.text();
+      throw new Error(`Groq API error: ${error}`);
+    }
   } catch(error){
 
   }
