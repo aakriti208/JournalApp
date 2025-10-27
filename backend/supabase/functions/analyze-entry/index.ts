@@ -29,6 +29,25 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
+    const prompt = `Analyze this journal entry and extract structured information.
+    Journal Entry:
+"${entryContent}"
+
+Extract and return ONLY a valid JSON object with this exact structure:
+{
+  "mood_score": <number from -5 (very negative) to 5 (very positive)>,
+  "topics": [<array of key topics/themes mentioned>],
+  "people": [<array of people's names mentioned>],
+  "places": [<array of locations mentioned>]
+}
+
+Rules:
+- mood_score must be an integer between -5 and 5
+- Return empty arrays if nothing found
+- Only return the JSON object, no other text`;
+
+
+
 
   }
 
