@@ -15,6 +15,15 @@ Deno.serve(async (req) => {
     if(!entryContent || !entryId) {
       throw new Error("entryContent and entryId are required")
     }
+
+    const groqApiKey = Deno.env.get('GROQ_API_KEY');
+    if(!groqApiKey) {
+      throw new Error("GROQ_API_KEY not configured");
+    }
+
+    
+
+
   }
 
   return new Response(
