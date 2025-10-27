@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Dependencies
 node_modules/
 
@@ -32,3 +33,6 @@ yarn-error.*
 .env.local
 .env.production.local
 .env.development.local
+=======
+node_modules
+>>>>>>> main
