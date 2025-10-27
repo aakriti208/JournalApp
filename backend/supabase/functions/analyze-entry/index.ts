@@ -46,8 +46,23 @@ Rules:
 - Return empty arrays if nothing found
 - Only return the JSON object, no other text`;
 
-
-
+    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${groqApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.3,  // Lower temp for more consistent JSON
+        max_tokens: 300,
+      }),
+    });
+      
+  } catch(error){
 
   }
 
