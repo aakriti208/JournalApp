@@ -1,15 +1,26 @@
-# Journal App - iOS-First React Native App
+# JournalApp - AI-Powered Journaling App
 
-A modern, iOS-first journal application built with Expo, TypeScript, and Supabase.
+A modern, AI-powered journal application inspired by Apple's Journal app, built with Expo, React Native, TypeScript, and Supabase. Features custom fine-tuned AI model for personalized prompts and insights.
 
 ## Features
 
+### Core Features
+- **Smart Authentication** - Secure user registration and login with Supabase
+- **AI-Powered Insights** - Custom fine-tuned model analyzes your entries for themes, emotions, and patterns
+- **Personalized Prompts** - AI-generated writing prompts based on your journal history
+- **Streak Tracking** - Track your daily journaling streak and statistics
+- **Rich Text Editor** - Beautiful, distraction-free writing experience
+- **Smart Search** - Quickly find entries by title or content
+- **Privacy-First** - All your data stays private in your Supabase database
+
+### Technical Features
 - **File-based routing** with expo-router
 - **Authentication** with Supabase
 - **Secure token storage** using expo-secure-store
 - **Modern styling** with NativeWind (Tailwind CSS for React Native)
 - **iOS haptic feedback** for enhanced user experience
 - **TypeScript** for type safety
+- **AI Backend** - FastAPI backend for custom AI model integration
 
 ---
 

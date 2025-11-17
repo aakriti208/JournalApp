@@ -1,42 +1,33 @@
-import { View, Text, Pressable } from 'react-native';
+import { useEffect } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { supabase } from '@/services/supabase';
+import { authService } from '../services/auth';
 
 export default function Index() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        router.replace('/(tabs)');
-      } else {
-        router.replace('/(auth)/login');
-      }
-      setLoading(false);
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        router.replace('/(tabs)');
-      } else {
-        router.replace('/(auth)/login');
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    checkAuth();
   }, []);
 
-  if (loading) {
-    return (
-      <View className="flex-1 items-center justify-center bg-white">
-        <Text className="text-lg font-semibold">Loading...</Text>
-      </View>
-    );
+  async function checkAuth() {
+    try {
+      const session = await authService.getSession();
+
+      if (session) {
+        router.replace('/(tabs)/home');
+      } else {
+        router.replace('/(auth)/login');
+      }
+    } catch (error) {
+      console.error('Auth check error:', error);
+      router.replace('/(auth)/login');
+    }
   }
 
-  return null;
+  return (
+    <View className="flex-1 items-center justify-center bg-white">
+      <ActivityIndicator size="large" color="#0ea5e9" />
+    </View>
+  );
 }
